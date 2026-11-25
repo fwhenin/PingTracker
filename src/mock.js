@@ -54,19 +54,49 @@ const latest = () => {
   return out;
 };
 
+let nextRun = Date.now() + 192_000;
+let lastRun = now;
+let running = false;
+function simulateRun() {
+  running = true;
+  emit("status-updated", null);
+  setTimeout(() => {
+    const ts = Date.now();
+    const fresh = [];
+    for (const [tid, [b, host]] of Object.entries(base)) {
+      if (!settings.targets.find((t) => t.id === tid)?.enabled) continue;
+      const avg = b * (0.85 + Math.random() * 0.4);
+      const r = { id: id++, ts, target_id: tid, target_label: settings.targets.find((x) => x.id === tid).label, host, ip: host,
+        interface: null, sent: 5, received: 5, loss: 0, min_ms: avg * 0.8, avg_ms: avg, max_ms: avg * 1.4, jitter_ms: avg * 0.08, error: null };
+      rows.push(r);
+      fresh.push(r);
+    }
+    running = false;
+    lastRun = ts;
+    nextRun = ts + settings.interval_minutes * 60_000;
+    emit("results-updated", structuredClone(fresh));
+    emit("status-updated", null);
+  }, 1200);
+}
+setInterval(() => {
+  if (!running && !settings.paused && Date.now() >= nextRun) simulateRun();
+}, 500);
+if (typeof location !== "undefined" && location.hash === "#soon") nextRun = Date.now() + 4000;
+
 const handlers = {
   get_settings: () => settings,
   save_settings: ({ settings: s }) => {
+    if (s.interval_minutes !== settings.interval_minutes) nextRun = lastRun + s.interval_minutes * 60_000;
     settings = s;
     emit("settings-updated", s);
     return s;
   },
   get_status: () => ({
-    running: false, last_run_ts: now, next_run_ts: Date.now() + 192_000, latest: latest(),
+    running, last_run_ts: lastRun, next_run_ts: settings.paused ? null : nextRun, latest: latest(),
     paused: settings.paused, interval_minutes: settings.interval_minutes, interval_choices: [1, 2, 5, 10, 15, 30, 60],
     total_results: rows.length, platform: "macos", data_dir: "~/Library/Application Support/com.fwhenin.pingtracker",
   }),
-  run_now: () => null,
+  run_now: () => { if (!running) simulateRun(); return null; },
   set_paused: ({ paused }) => ((settings = { ...settings, paused }), settings),
   list_interfaces: () => [
     { id: "en0", label: "en0", ipv4: ["192.168.1.23"], gateway: "192.168.1.1", is_default: true },

@@ -38,6 +38,12 @@
             <button data-range="2592000000">30D</button>
           </div>
           <div class="toolbar-note" id="range-note"></div>
+          <div class="countdown" id="countdown" aria-live="off">
+            <span class="live" title="The dashboard updates by itself as soon as a test finishes"><span class="live-dot"></span>Live</span>
+            <span class="cd-label" id="cd-label">Next test in</span>
+            <span class="cd-time" id="cd-time">–:–</span>
+            <span class="cd-bar"><span id="cd-fill"></span></span>
+          </div>
         </div>
 
         <div id="cards" class="cards"></div>

@@ -97,15 +97,39 @@ function renderStatus() {
   let text;
   if (s.running) text = "Testing…";
   else if (s.paused) text = "Paused";
-  else if (s.next_run_ts) {
-    const secs = Math.max(0, Math.round((s.next_run_ts - Date.now()) / 1000));
-    const left = secs >= 60 ? `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, "0")}s` : `${secs}s`;
-    text = `Next test in ${left} · every ${intervalLabel(s.interval_minutes)}`;
-  } else text = `Every ${intervalLabel(s.interval_minutes)}`;
+  else text = `Testing every ${intervalLabel(s.interval_minutes)}`;
   $("#status-text").textContent = text;
   $("#btn-run").disabled = !!s.running;
   $("#btn-pause").textContent = s.paused ? "Resume" : "Pause";
+  renderCountdown();
   $("#total-count").textContent = `${s.total_results.toLocaleString()} tests stored`;
+}
+
+function renderCountdown() {
+  const s = state.status;
+  const box = $("#countdown");
+  box.classList.toggle("running", !!s.running);
+  box.classList.toggle("paused", !!s.paused && !s.running);
+  const fill = $("#cd-fill");
+  if (s.running) {
+    $("#cd-label").textContent = "Running test";
+    $("#cd-time").textContent = "now";
+    return;
+  }
+  if (s.paused || !s.next_run_ts) {
+    $("#cd-label").textContent = s.paused ? "Tests paused" : "Next test";
+    $("#cd-time").textContent = "–:–";
+    fill.style.width = "0";
+    return;
+  }
+  const remaining = Math.max(0, s.next_run_ts - Date.now());
+  const secs = Math.ceil(remaining / 1000);
+  const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), sec = secs % 60;
+  $("#cd-label").textContent = "Next test in";
+  $("#cd-time").textContent = h ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
+  const total = s.last_run_ts ? s.next_run_ts - s.last_run_ts : s.interval_minutes * 60_000;
+  const frac = total > 0 ? Math.min(1, Math.max(0, 1 - remaining / total)) : 0;
+  fill.style.width = `${(frac * 100).toFixed(1)}%`;
 }
 
 async function refreshStatus() {
@@ -267,7 +291,7 @@ function upsertChart(key, type, datasets, options) {
   state.charts[key] = new Chart(canvas, { type, data: { datasets }, options });
 }
 
-function renderCards(summaries) {
+function renderCards(summaries, freshTargets = new Set()) {
   const box = $("#cards");
   box.replaceChildren();
   const enabled = state.settings.targets.filter((t) => t.enabled);
@@ -292,7 +316,7 @@ function renderCards(summaries) {
     box.append(
       el(
         "div",
-        { class: "card" },
+        { class: freshTargets.has(id) ? "card fresh" : "card" },
         el(
           "div",
           { class: "card-head" },
@@ -325,7 +349,7 @@ function renderCards(summaries) {
   }
 }
 
-function renderRecent(rows) {
+function renderRecent(rows, freshIds = new Set()) {
   const body = $("#recent");
   body.replaceChildren();
   if (!rows.length) {
@@ -337,7 +361,7 @@ function renderRecent(rows) {
     body.append(
       el(
         "tr",
-        {},
+        { class: freshIds.has(r.id) ? "fresh" : "" },
         el("td", {}, fmtTime(r.ts)),
         el("td", {}, el("span", { class: "target" }, el("span", { class: "swatch", style: `background:${colorFor(r.target_id)}` }), r.target_label)),
         el("td", { class: `num ${level === "warn" && r.received ? "warn-text" : ""}` }, fmtMsUnit(r.avg_ms)),
@@ -350,7 +374,9 @@ function renderRecent(rows) {
   }
 }
 
-async function refreshDashboard() {
+async function refreshDashboard(freshResults = []) {
+  const freshIds = new Set(freshResults.map((r) => r.id));
+  const freshTargets = new Set(freshResults.map((r) => r.target_id));
   const to = Date.now();
   const from = to - state.rangeMs;
   const [series, summaries, recent] = await Promise.all([
@@ -358,9 +384,9 @@ async function refreshDashboard() {
     api.get_summary({ from, to }),
     api.get_recent({ limit: 15 }),
   ]);
-  renderCards(summaries);
+  renderCards(summaries, freshTargets);
   renderCharts(series, summaries);
-  renderRecent(recent);
+  renderRecent(recent, freshIds);
   const tests = summaries.reduce((a, s) => a + s.tests, 0);
   $("#range-note").textContent = tests ? `${tests.toLocaleString()} tests in range` : "";
 }
@@ -538,7 +564,10 @@ async function boot() {
   await refreshDashboard();
 
   onEvent("status-updated", refreshStatus);
-  onEvent("results-updated", refreshDashboard);
+  onEvent("results-updated", (results) => {
+    refreshDashboard(Array.isArray(results) ? results : []);
+    refreshStatus();
+  });
   onEvent("settings-updated", (s) => {
     state.settings = s;
     renderSettings();
@@ -547,6 +576,11 @@ async function boot() {
   setInterval(renderStatus, 1000);
   // Keep the time axis moving even between tests.
   setInterval(() => !document.hidden && refreshDashboard(), 60_000);
+  // Catch up immediately when the window is shown again from the tray.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) Promise.all([refreshStatus(), refreshDashboard()]);
+  });
+  window.addEventListener("focus", () => Promise.all([refreshStatus(), refreshDashboard()]));
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
     Object.values(state.charts).forEach((c) => c.destroy());
     state.charts = {};

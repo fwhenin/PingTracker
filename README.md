@@ -43,7 +43,7 @@ git checkout -b release/1.2.0
 git push -u origin release/1.2.0
 ```
 
-About 10–15 minutes later, **PingTracker 1.2.0** appears under Releases. Pushing more commits to the same release branch (for a last-minute fix) rebuilds and replaces the files on that release, and the tag moves to the new commit. Merge the release branch back into `main` afterwards if it has fixes.
+About 10–15 minutes later, **PingTracker 1.2.0** appears under Releases. Pushing more commits to the same release branch (for a last-minute fix) rebuilds and replaces the installer files on that release (the tag stays on the first commit; delete the release and tag first if you want it to move). Merge the release branch back into `main` afterwards if it has fixes.
 
 - The version comes from the branch or tag name, so you don't need to edit any files to bump it. It must be `X.Y.Z`, or `X.Y.Z-N` for a pre-release (e.g. `release/1.2.0-1`), because Windows installers only accept numeric versions. Pre-releases are marked as such and don't become "Latest".
 - Release notes start with download and install instructions, followed by GitHub's auto-generated list of merged pull requests and contributors since the previous release. Pull requests are grouped by label (`feature`/`enhancement`, `bug`/`fix`, everything else); label one `skip-changelog` to leave it out. You can edit the notes on GitHub after publishing.

@@ -17,17 +17,36 @@ Each test sends a configurable number of pings (default 5) and records min / ave
 
 ## Download
 
-Every push and pull request builds installers with GitHub Actions (**Actions → Build installers → Artifacts**):
+Grab the latest installers from [Releases](https://github.com/fwhenin/PingTracker/releases):
 
-- `PingTracker-macOS-dmg`: universal `.dmg` (Apple Silicon + Intel)
-- `PingTracker-Windows-msi`: `.msi` installer
-
-Pushing a tag like `v0.1.0` also publishes both installers to a GitHub Release.
+- `PingTracker_<version>_universal.dmg`: macOS 10.15+ (Apple Silicon and Intel)
+- `PingTracker_<version>_x64_en-US.msi`: Windows 10/11
 
 The builds are not code-signed yet:
 
 - **macOS:** after dragging PingTracker to Applications, right-click it and choose **Open** the first time (or run `xattr -dr com.apple.quarantine /Applications/PingTracker.app`).
 - **Windows:** SmartScreen may warn about an unknown publisher; choose **More info → Run anyway**.
+
+## Branches and releases
+
+| What you push | What GitHub Actions does |
+|---|---|
+| A pull request, or a commit to `main` | Builds the `.dmg` and `.msi` and attaches them to the workflow run as artifacts (**Actions → Build installers → Artifacts**). No release. |
+| A branch named `release/X.Y.Z` (e.g. `release/1.2.0`) | Builds both installers with version `X.Y.Z`, then creates the tag `vX.Y.Z` and a GitHub Release with the `.dmg` and `.msi` attached and release notes. |
+| A tag named `vX.Y.Z` | Same as a release branch, if you prefer tagging. |
+
+To cut a release:
+
+```sh
+git checkout main && git pull
+git checkout -b release/1.2.0
+git push -u origin release/1.2.0
+```
+
+About 10–15 minutes later, **PingTracker 1.2.0** appears under Releases. Pushing more commits to the same release branch (for a last-minute fix) rebuilds and replaces the files on that release, and the tag moves to the new commit. Merge the release branch back into `main` afterwards if it has fixes.
+
+- The version comes from the branch or tag name, so you don't need to edit any files to bump it. It must be `X.Y.Z`, or `X.Y.Z-N` for a pre-release (e.g. `release/1.2.0-1`), because Windows installers only accept numeric versions. Pre-releases are marked as such and don't become "Latest".
+- Release notes start with download and install instructions, followed by GitHub's auto-generated list of merged pull requests and contributors since the previous release. Pull requests are grouped by label (`feature`/`enhancement`, `bug`/`fix`, everything else); label one `skip-changelog` to leave it out. You can edit the notes on GitHub after publishing.
 
 ## Development
 
@@ -54,4 +73,5 @@ cd src-tauri && cargo test
 | `src-tauri/src/settings.rs` | Settings model and persistence |
 | `src-tauri/src/lib.rs` | Scheduler, tray menu, commands, app setup |
 | `src/` | Dashboard UI |
-| `.github/workflows/build.yml` | CI that builds the `.dmg` and `.msi` |
+| `.github/workflows/build.yml` | CI that builds the `.dmg` and `.msi` and publishes releases |
+| `.github/release.yml` | How auto-generated release notes are grouped |

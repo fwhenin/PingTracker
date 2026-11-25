@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PingTracker</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" class="logo" aria-hidden="true">
+          <rect x="1" y="1" width="22" height="22" rx="6" />
+          <polyline points="3.5,13 8,13 10,7.5 13,18.5 15,13 20.5,13" />
+        </svg>
+        <span>PingTracker</span>
+      </div>
+      <nav class="tabs" role="tablist">
+        <button class="tab active" data-view="dashboard" role="tab">Dashboard</button>
+        <button class="tab" data-view="settings" role="tab">Settings</button>
+      </nav>
+      <div class="run-status">
+        <span id="status-dot" class="dot idle" aria-hidden="true"></span>
+        <span id="status-text">Starting…</span>
+        <button id="btn-run" class="btn">Run test now</button>
+        <button id="btn-pause" class="btn ghost">Pause</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="view-dashboard" class="view active">
+        <div class="toolbar">
+          <div class="segmented" id="range" role="radiogroup" aria-label="Time range">
+            <button data-range="3600000">1H</button>
+            <button data-range="21600000">6H</button>
+            <button data-range="86400000" class="on">24H</button>
+            <button data-range="604800000">7D</button>
+            <button data-range="2592000000">30D</button>
+          </div>
+          <div class="toolbar-note" id="range-note"></div>
+          <div class="countdown" id="countdown" aria-live="off">
+            <span class="live" title="The dashboard updates by itself as soon as a test finishes"><span class="live-dot"></span>Live</span>
+            <span class="cd-label" id="cd-label">Next test in</span>
+            <span class="cd-time" id="cd-time">–:–</span>
+            <span class="cd-bar"><span id="cd-fill"></span></span>
+          </div>
+        </div>
+
+        <div id="cards" class="cards"></div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Latency</h2>
+            <span class="hint">Average round-trip time per test, in milliseconds</span>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-latency"></canvas></div>
+          <div class="empty" id="empty-latency" hidden>No results in this time range yet.</div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Packet loss</h2>
+            <span class="hint">Share of pings without a reply, in percent</span>
+          </div>
+          <div class="chart-wrap short"><canvas id="chart-loss"></canvas></div>
+          <div class="empty" id="empty-loss" hidden>No packet loss data yet.</div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Recent tests</h2>
+            <span class="hint" id="total-count"></span>
+          </div>
+          <div class="table-wrap">
+            <table class="results">
+              <thead>
+                <tr>
+                  <th>Time</th><th>Target</th><th class="num">Avg</th><th class="num">Min / Max</th>
+                  <th class="num">Jitter</th><th class="num">Loss</th><th>Notes</th>
+                </tr>
+              </thead>
+              <tbody id="recent"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-settings" class="view">
+        <div class="panel">
+          <h2>Test every</h2>
+          <p class="hint">How often PingTracker runs a ping test.</p>
+          <div class="segmented big" id="interval" role="radiogroup" aria-label="Test interval"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Ping targets</h2>
+          <p class="hint">Each enabled target is tested every run. The router target follows the selected network interface.</p>
+          <ul id="targets" class="targets"></ul>
+          <form id="add-target" class="add-target">
+            <input id="new-label" placeholder="Name (optional)" maxlength="40" />
+            <input id="new-host" placeholder="Host name or IP, e.g. example.com" required maxlength="253" />
+            <button class="btn" type="submit">Add target</button>
+          </form>
+        </div>
+
+        <div class="panel">
+          <h2>Network</h2>
+          <div class="field">
+            <label for="interface">Network interface</label>
+            <select id="interface"></select>
+            <span class="hint" id="interface-hint"></span>
+          </div>
+          <div class="grid3">
+            <div class="field">
+              <label for="pings">Pings per test</label>
+              <select id="pings">
+                <option value="3">3</option><option value="5">5</option><option value="10">10</option><option value="20">20</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="timeout">Reply timeout</label>
+              <select id="timeout">
+                <option value="1000">1 second</option><option value="2000">2 seconds</option><option value="5000">5 seconds</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="slow">Show as slow above</label>
+              <select id="slow">
+                <option value="50">50 ms</option><option value="100">100 ms</option><option value="150">150 ms</option>
+                <option value="200">200 ms</option><option value="300">300 ms</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>General</h2>
+          <label class="check"><input type="checkbox" id="login" /> Launch PingTracker at login</label>
+          <label class="check" id="menubar-row"><input type="checkbox" id="menubar" /> Show latest latency in the menu bar</label>
+          <div class="field">
+            <label for="retention">Keep history for</label>
+            <select id="retention">
+              <option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option>
+              <option value="365">1 year</option><option value="0">Forever</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Data</h2>
+          <p class="hint" id="data-dir"></p>
+          <div class="row">
+            <button class="btn" id="btn-export">Export history as CSV</button>
+            <button class="btn danger" id="btn-clear">Clear history</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

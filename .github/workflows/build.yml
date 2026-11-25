@@ -1,0 +1,158 @@
+name: Build installers
+
+# Branching / release scheme
+#   * Pull requests and pushes to main   -> build .dmg + .msi as workflow artifacts (no release)
+#   * Push a branch named release/X.Y.Z  -> build, then create/update GitHub Release vX.Y.Z
+#   * Push a tag named vX.Y.Z            -> same as above (alternative to a release branch)
+# The version from the branch/tag name is stamped into the app and installer file names.
+# A version with a suffix (e.g. release/1.2.0-1) is published as a pre-release.
+
+on:
+  push:
+    branches: [main, "release/**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  version:
+    name: Determine version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      is_release: ${{ steps.v.outputs.is_release }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        shell: bash
+        run: |
+          ref="${GITHUB_REF}"
+          if [[ "$ref" == refs/tags/v* ]]; then
+            version="${ref#refs/tags/v}"; is_release=true
+          elif [[ "$ref" == refs/heads/release/* ]]; then
+            version="${ref#refs/heads/release/}"; version="${version#v}"; is_release=true
+          else
+            version="$(node -p "require('./src-tauri/tauri.conf.json').version")"; is_release=false
+          fi
+          # Windows MSI needs X.Y.Z or X.Y.Z-N (numeric suffix, max 65535).
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$ ]]; then
+            echo "::error::Version '$version' must look like 1.2.3 or 1.2.3-1 (from release/1.2.3 or tag v1.2.3)"
+            exit 1
+          fi
+          prerelease=false; [[ "$version" == *-* ]] && prerelease=true
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "is_release=$is_release" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "Version: $version (release: $is_release, prerelease: $prerelease)"
+
+  build:
+    name: ${{ matrix.name }}
+    needs: version
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS (universal .dmg)
+            os: macos-latest
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+            build_args: --target universal-apple-darwin --bundles dmg
+            artifact_name: PingTracker-macOS-dmg
+            artifact_path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          - name: Windows (.msi)
+            os: windows-latest
+            rust_targets: ""
+            build_args: --bundles msi
+            artifact_name: PingTracker-Windows-msi
+            artifact_path: src-tauri/target/release/bundle/msi/*.msi
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Run Rust tests (includes a real loopback ping)
+        working-directory: src-tauri
+        run: cargo test
+
+      - name: Build app and installer (version ${{ needs.version.outputs.version }})
+        shell: bash
+        run: npx tauri build ${{ matrix.build_args }} --config "{\"version\":\"${{ needs.version.outputs.version }}\"}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    needs: [version, build]
+    if: needs.version.outputs.is_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Write release notes header
+        shell: bash
+        run: |
+          v="${{ needs.version.outputs.version }}"
+          cat > release-header.md <<NOTES
+          ## Download
+
+          | Platform | File |
+          |---|---|
+          | macOS 10.15+ (Apple Silicon and Intel) | \`PingTracker_${v}_universal.dmg\` |
+          | Windows 10/11 (64-bit) | \`PingTracker_${v}_x64_en-US.msi\` |
+
+          These builds are not code-signed yet:
+          - **macOS:** open the .dmg, drag PingTracker to Applications, then right-click it and choose **Open** the first time.
+          - **Windows:** if SmartScreen warns about an unknown publisher, choose **More info → Run anyway**.
+
+          NOTES
+          ls -la artifacts
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: PingTracker ${{ needs.version.outputs.version }}
+          body_path: release-header.md
+          generate_release_notes: true
+          prerelease: ${{ needs.version.outputs.prerelease == 'true' }}
+          make_latest: ${{ needs.version.outputs.prerelease != 'true' }}
+          fail_on_unmatched_files: true
+          files: |
+            artifacts/*.dmg
+            artifacts/*.msi

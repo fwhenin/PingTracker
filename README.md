@@ -27,6 +27,19 @@ The builds are not code-signed yet:
 - **macOS:** after dragging PingTracker to Applications, right-click it and choose **Open** the first time (or run `xattr -dr com.apple.quarantine /Applications/PingTracker.app`).
 - **Windows:** SmartScreen may warn about an unknown publisher; choose **More info → Run anyway**.
 
+## Web version (Chromebook, iPhone, iPad, any browser)
+
+A standalone browser version runs at **https://fwhenin.github.io/PingTracker/**. Nothing to install, and it can be added to the home screen (iOS Safari: *Share → Add to Home Screen*; ChromeOS/Chrome/Edge: *Install* in the browser menu) so it opens like an app and works offline.
+
+It uses the same dashboard, intervals, targets, retention and CSV export as the desktop app, with some browser limits (also explained in the app's **?** window):
+
+- **Not a true ping.** Browsers can't send ICMP, so latency is the round-trip time of a tiny uncached HTTPS request (after a warm-up request opens the connection). Expect a few ms more than a real ping; trends and dropouts show the same way.
+- **Only while the page is open.** Background tabs are throttled or frozen, so tests can run late or stop. When the page comes back, one catch-up test runs right away; missed slots aren't backfilled. *Keep the screen on* in Settings (Screen Wake Lock) helps on tablets and Chromebooks.
+- **Internet targets only, https only.** No router/LAN targets. Custom targets accept a host name, IP or full `https://` URL.
+- **Stored in this browser** (IndexedDB). Clearing site data deletes it; export a CSV to keep a copy. If several tabs are open, only one runs each test.
+
+Every push to `main` deploys it via `.github/workflows/pages.yml`; pull requests just build it.
+
 ## Branches and releases
 
 | What you push | What GitHub Actions does |
@@ -63,6 +76,8 @@ cd src-tauri && cargo test
 
 `npm run dev` on its own serves the dashboard in a normal browser with mock data, which is handy for UI work.
 
+For the web version: `npm run dev:web` (live, real measurements, http://localhost:1430) and `npm run build:web` (outputs `dist-web/`).
+
 ### Layout
 
 | Path | What it is |
@@ -72,6 +87,9 @@ cd src-tauri && cargo test
 | `src-tauri/src/store.rs` | SQLite history, bucketed series, summaries, CSV export |
 | `src-tauri/src/settings.rs` | Settings model and persistence |
 | `src-tauri/src/lib.rs` | Scheduler, tray menu, commands, app setup |
-| `src/` | Dashboard UI |
+| `src/` | Dashboard UI (shared by desktop and web) |
+| `src/web/` | Browser backend for the web version: HTTPS timing, scheduler, IndexedDB |
+| `web/` | Web-only files: PWA manifest, icons, service worker template |
+| `.github/workflows/pages.yml` | Builds the web version and deploys it to GitHub Pages |
 | `.github/workflows/build.yml` | CI that builds the `.dmg` and `.msi` and publishes releases |
 | `.github/release.yml` | How auto-generated release notes are grouped |

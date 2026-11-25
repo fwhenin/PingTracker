@@ -25,6 +25,7 @@
         <button id="btn-run" class="btn">Run test now</button>
         <button id="btn-pause" class="btn ghost">Pause</button>
       </div>
+      <button id="btn-about" class="btn ghost icon-btn" title="About PingTracker" aria-label="About PingTracker" hidden>?</button>
     </header>
 
     <main>
@@ -60,7 +61,7 @@
         <div class="panel">
           <div class="panel-head">
             <h2>Packet loss</h2>
-            <span class="hint">Share of pings without a reply, in percent</span>
+            <span class="hint" id="loss-hint">Share of pings without a reply, in percent</span>
           </div>
           <div class="chart-wrap short"><canvas id="chart-loss"></canvas></div>
           <div class="empty" id="empty-loss" hidden>No packet loss data yet.</div>
@@ -94,7 +95,7 @@
 
         <div class="panel">
           <h2>Ping targets</h2>
-          <p class="hint">Each enabled target is tested every run. The router target follows the selected network interface.</p>
+          <p class="hint" id="targets-hint">Each enabled target is tested every run. The router target follows the selected network interface.</p>
           <ul id="targets" class="targets"></ul>
           <form id="add-target" class="add-target">
             <input id="new-label" placeholder="Name (optional)" maxlength="40" />
@@ -104,8 +105,8 @@
         </div>
 
         <div class="panel">
-          <h2>Network</h2>
-          <div class="field">
+          <h2 id="network-title">Network</h2>
+          <div class="field" id="interface-field">
             <label for="interface">Network interface</label>
             <select id="interface"></select>
             <span class="hint" id="interface-hint"></span>
@@ -135,7 +136,8 @@
 
         <div class="panel">
           <h2>General</h2>
-          <label class="check"><input type="checkbox" id="login" /> Launch PingTracker at login</label>
+          <label class="check" id="login-row"><input type="checkbox" id="login" /> Launch PingTracker at login</label>
+          <label class="check" id="awake-row" hidden><input type="checkbox" id="keep-awake" /> Keep the screen on while this page is open, so tests keep running</label>
           <label class="check" id="menubar-row"><input type="checkbox" id="menubar" /> Show latest latency in the menu bar</label>
           <div class="field">
             <label for="retention">Keep history for</label>
@@ -156,6 +158,30 @@
         </div>
       </section>
     </main>
+
+    <div id="web-banner" class="banner" hidden>
+      <span>Tests run only while this page is open. Keep the tab open (or add it to your home screen) to build up history.</span>
+      <button id="banner-more" class="linklike">Learn more</button>
+      <button id="banner-close" class="banner-close" aria-label="Dismiss">×</button>
+    </div>
+
+    <dialog id="about" class="modal" aria-labelledby="about-title">
+      <form method="dialog" class="modal-close-form"><button class="modal-close" aria-label="Close">×</button></form>
+      <h2 id="about-title">About PingTracker</h2>
+      <p>PingTracker checks your internet connection on a schedule and keeps a history of the results, so you can see when your connection is slow or dropping out and show the evidence to your internet provider.</p>
+      <p>Every few minutes (you choose how often in Settings) it measures how long each target takes to answer and how many attempts got no answer at all. The dashboard shows the latest results, latency and packet loss charts, and a list of recent tests. Everything is stored only in this browser on this device. Nothing is sent anywhere else.</p>
+      <h3>Limits of the web version</h3>
+      <ul>
+        <li><b>Not a true ping.</b> Browsers can't send ping (ICMP) packets, so latency is the time a tiny HTTPS request takes to come back. Numbers usually run a few milliseconds higher than a real ping, but trends and dropouts show up the same way.</li>
+        <li><b>Only while the page is open.</b> Tests stop when you close the tab, and phones and Chromebooks slow down or pause pages in the background. When you come back, one test runs right away; missed tests aren't filled in. Adding PingTracker to your home screen and turning on “Keep the screen on” in Settings helps.</li>
+        <li><b>Internet sites only.</b> Web pages can't reach your router or other devices on your home network, and only https:// addresses can be tested.</li>
+        <li><b>Stored in this browser.</b> Clearing your browsing data deletes the history. Use “Export history as CSV” in Settings to keep a copy.</li>
+      </ul>
+      <h3>Want true pings in the background?</h3>
+      <p>The desktop apps for macOS and Windows run real pings from the menu bar or system tray all day, even with the window closed, and can test your router too.</p>
+      <p><a class="btn" href="https://github.com/fwhenin/PingTracker/releases/latest" target="_blank" rel="noopener">Download for Mac or Windows</a></p>
+      <p class="hint" id="install-hint"></p>
+    </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script type="module" src="/src/main.js"></script>

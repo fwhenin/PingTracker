@@ -43,6 +43,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; }
 body {
   background: var(--bg);
@@ -188,9 +189,48 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 
 @media (max-width: 760px) {
   .topbar { flex-wrap: wrap; gap: 10px; padding: 10px 16px; }
-  .run-status { margin-left: 0; width: 100%; }
+  .run-status { margin-left: 0; width: 100%; order: 3; }
+  .icon-btn { margin-left: auto; }
   main { padding: 14px 16px 30px; }
   .card-stats { grid-template-columns: repeat(2, 1fr); }
   .countdown { margin-left: 0; width: 100%; }
   .cd-bar { flex: 1; }
+}
+
+/* Web version: info button, banner and About dialog */
+#status-text { white-space: nowrap; }
+.icon-btn { flex: none; width: 30px; height: 30px; padding: 0; border-radius: 50%; font-weight: 650; font-size: 14px; }
+.banner {
+  position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  width: min(720px, calc(100vw - 32px)); z-index: 6;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12); padding: 10px 12px 10px 14px; font-size: 13px;
+}
+.banner span { flex: 1 1 260px; }
+.linklike { border: 0; background: none; padding: 0; font: inherit; color: var(--accent); cursor: pointer; font-weight: 600; }
+.banner-close, .modal-close {
+  border: 0; background: transparent; color: var(--text-2); font-size: 20px; line-height: 1; cursor: pointer;
+  width: 30px; height: 30px; border-radius: 6px;
+}
+.banner-close:hover, .modal-close:hover { background: var(--surface-2); color: var(--text); }
+.modal {
+  width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow: auto;
+  border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px;
+  background: var(--surface); color: var(--text); box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
+}
+.modal::backdrop { background: rgba(0, 0, 0, 0.4); }
+.modal h2 { font-size: 18px; margin: 0 0 10px; }
+.modal h3 { font-size: 14px; margin: 18px 0 6px; }
+.modal p, .modal li { font-size: 13.5px; }
+.modal p { margin: 0 0 10px; }
+.modal ul { margin: 0; padding-left: 18px; }
+.modal li { margin-bottom: 7px; }
+.modal a.btn { display: inline-block; text-decoration: none; }
+.modal-close-form { float: right; margin: -8px -10px 0 0; }
+
+/* Respect notches/home indicator when installed to the home screen */
+@supports (padding: env(safe-area-inset-top)) {
+  .topbar { padding-top: max(10px, env(safe-area-inset-top)); }
+  main { padding-bottom: max(40px, calc(env(safe-area-inset-bottom) + 70px)); }
 }

@@ -424,7 +424,7 @@ async function renderSettings() {
   // Targets
   const list = $("#targets");
   list.replaceChildren();
-  const gw = await api.default_gateway({ interface: s.interface }).catch(() => null);
+  const gw = isWeb() ? null : await api.default_gateway({ interface: s.interface }).catch(() => null);
   s.targets.forEach((t, i) => {
     const hostText = t.kind === "gateway" ? (gw ? `${gw} (detected)` : "Not detected") : t.host;
     list.append(
@@ -473,6 +473,53 @@ async function renderSettings() {
   $("#menubar").checked = s.show_latency_in_menu_bar;
   $("#menubar-row").hidden = state.status?.platform !== "macos";
   $("#data-dir").textContent = state.status?.data_dir ? `History is stored locally in ${state.status.data_dir}` : "";
+  if (isWeb()) applyWebSettings(s);
+}
+
+const isWeb = () => state.status?.platform === "web";
+
+/** The browser version has no interfaces, router, login item or menu bar. */
+function applyWebSettings(s) {
+  $("#interface-field").hidden = true;
+  $("#network-title").textContent = "Measurement";
+  $("label[for=pings]").textContent = "Requests per test";
+  $("#login-row").hidden = true;
+  $("#menubar-row").hidden = true;
+  $("#awake-row").hidden = !state.status?.features?.wake_lock;
+  $("#keep-awake").checked = !!s.keep_awake;
+  $("#targets-hint").textContent =
+    "Each enabled target is tested every run by timing small HTTPS requests to it. Add any website (https only).";
+  $("#new-host").placeholder = "Web address, e.g. example.com";
+  $("#data-dir").textContent =
+    "History is stored only in this browser on this device. Clearing browsing data deletes it, so export a CSV now and then if you want to keep it.";
+}
+
+function setupWeb() {
+  document.documentElement.classList.add("web");
+  $("#btn-about").hidden = false;
+  $("#loss-hint").textContent = "Share of requests that got no answer, in percent";
+  const dlg = $("#about");
+  const open = () => (dlg.showModal ? dlg.showModal() : dlg.setAttribute("open", ""));
+  $("#btn-about").addEventListener("click", open);
+  $("#banner-more").addEventListener("click", open);
+  dlg.addEventListener("click", (e) => e.target === dlg && dlg.close());
+
+  const ua = navigator.userAgent;
+  const iOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  $("#install-hint").textContent = standalone
+    ? ""
+    : iOS
+      ? "Tip: in Safari, tap Share, then “Add to Home Screen” to install PingTracker as an app."
+      : "Tip: use “Install” in your browser’s menu (or the install icon in the address bar) to add PingTracker as an app.";
+
+  let dismissed = false;
+  try { dismissed = localStorage.getItem("pt-banner-dismissed") === "1"; } catch {}
+  $("#web-banner").hidden = dismissed;
+  $("#banner-close").addEventListener("click", () => {
+    $("#web-banner").hidden = true;
+    try { localStorage.setItem("pt-banner-dismissed", "1"); } catch {}
+  });
 }
 
 function bindSettings() {
@@ -483,6 +530,7 @@ function bindSettings() {
   $("#retention").addEventListener("change", (e) => save({ retention_days: Number(e.target.value) }));
   $("#login").addEventListener("change", (e) => save({ launch_at_login: e.target.checked }));
   $("#menubar").addEventListener("change", (e) => save({ show_latency_in_menu_bar: e.target.checked }));
+  $("#keep-awake").addEventListener("change", (e) => save({ keep_awake: e.target.checked }, e.target.checked ? "Screen will stay on while PingTracker is open" : "Screen can turn off normally"));
 
   $("#add-target").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -498,7 +546,7 @@ function bindSettings() {
   $("#btn-export").addEventListener("click", async () => {
     try {
       const path = await api.export_csv({ from: 0, to: Date.now() });
-      toast(`Saved to ${path}`);
+      toast(isWeb() ? path : `Saved to ${path}`);
     } catch (e) {
       toast(String(e));
     }
@@ -543,6 +591,7 @@ function showView(name) {
 
 async function boot() {
   [state.settings, state.status, state.interfaces] = await Promise.all([api.get_settings(), api.get_status(), api.list_interfaces()]);
+  if (isWeb()) setupWeb();
   renderStatus();
   renderSettings();
   bindSettings();

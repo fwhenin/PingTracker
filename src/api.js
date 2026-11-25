@@ -1,6 +1,7 @@
-// Thin wrapper over Tauri's IPC. When the page is opened in a plain browser
-// (e.g. `npm run dev` without Tauri) it falls back to an in-memory mock so the
-// dashboard can still be previewed.
+// Thin wrapper over Tauri's IPC. The standalone web build (`--mode web`) uses a
+// browser backend instead (HTTPS timing + IndexedDB). When the desktop UI is
+// opened in a plain browser (e.g. `npm run dev` without Tauri) it falls back to
+// an in-memory mock so the dashboard can still be previewed.
 
 const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -17,6 +18,10 @@ if (inTauri) {
   const { listen } = await import("@tauri-apps/api/event");
   impl = (cmd, args) => invoke(cmd, args);
   listenImpl = (name, cb) => listen(name, (e) => cb(e.payload));
+} else if (import.meta.env.MODE === "web") {
+  const web = await import("./web/backend.js");
+  impl = web.invoke;
+  listenImpl = web.listen;
 } else {
   const mock = await import("./mock.js");
   impl = mock.invoke;
